@@ -48,10 +48,12 @@ WITH temp_table AS (
  LIMIT 1;
 
 --4. Вывести названия фильмов, которых нет в inventory. Написать запрос без использования оператора IN.
-select title from film
-except
-select f.title from inventory as i
-join film as f on (i.film_id = f.film_id);
+
+select title from film f
+where not exists (
+      select 1   
+      from inventory i
+      where i.film_id = f.film_id);
 
 -- 5. Вывести топ 3 актеров, которые больше всего появлялись в фильмах в категории “Children”. Если у нескольких актеров одинаковое кол-во фильмов, вывести всех
 WITH top_actors AS (
@@ -83,10 +85,10 @@ GROUP BY city
 ORDER BY number_inactive_customer DESC;
 
 --7.Вывести категорию фильмов, у которой самое большое кол-во часов суммарной аренды в городах (customer.address_id в этом city), и которые начинаются на букву “a”. То же самое сделать для городов в которых есть символ “-”. Написать все в одном запросе.
-WITH cities_start_a AS (
+WITH rental_hours AS (
      SELECT 
          c.name AS category_name,
-         city.city,
+         city.city as cities,
          SUM(ROUND(EXTRACT(EPOCH FROM (r.return_date-r.rental_date)) / 3600)) AS rental_hours
      FROM category AS c
      JOIN film_category AS f_c ON (c.category_id = f_c.category_id)
@@ -96,31 +98,24 @@ WITH cities_start_a AS (
      JOIN customer AS cust ON(r.customer_id = cust.customer_id)
      JOIN address as a ON (cust.address_id = a.address_id)
      JOIN city ON (a.city_id = city.city_id)
-     WHERE r.return_date IS NOT NULL AND city.city LIKE 'A%'
+     WHERE r.return_date IS NOT NULL
      GROUP BY category_name, city.city
+	 ),
+cities_a AS (
+     SELECT * FROM rental_hours
+	 WHERE cities LIKE 'A%'
 	 ORDER BY rental_hours DESC
 	 LIMIT 1
-),
-cities_with_dash AS (
-     SELECT 
-         c.name AS category_name,
-         city.city,
-         SUM(ROUND(EXTRACT(EPOCH FROM (r.return_date-r.rental_date)) / 3600)) AS rental_hours
-     FROM category AS c
-     JOIN film_category AS f_c ON (c.category_id = f_c.category_id)
-     JOIN film AS f ON (f_c.film_id = f.film_id)
-     JOIN inventory AS i ON (f.film_id = i.film_id)
-     JOIN rental AS r ON (i.inventory_id = r.inventory_id)
-     JOIN customer AS cust ON(r.customer_id = cust.customer_id)
-     JOIN address as a ON (cust.address_id = a.address_id)
-     JOIN city ON (a.city_id = city.city_id)
-     WHERE r.return_date IS NOT NULL AND city.city LIKE '%-%'
-     GROUP BY category_name, city.city
+), 
+cities_dash AS (
+     SELECT * FROM rental_hours
+	 WHERE cities LIKE '%-%'
 	 ORDER BY rental_hours DESC
 	 LIMIT 1
 )
-SELECT * FROM cities_start_a
+SELECT * FROM cities_a
 UNION ALL
-SELECT * FROM cities_with_dash;
+SELECT * FROM cities_dash;
+
 
 
